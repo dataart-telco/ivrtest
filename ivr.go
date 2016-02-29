@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"net"
 	"encoding/json"
+	"io"
+	"io/ioutil"
 )
 
 type Stat struct {
@@ -21,9 +23,9 @@ type Stat struct {
 type Ivr struct{
 	Host string
 	Port int
+	Resources string
 
 	Number string
-
 	RestcommApi *common.RestcommApi
 
 	incoming chan int `json:"-"`
@@ -105,7 +107,7 @@ func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w,
 		"<Response><Gather action=\"%s\" method=\"POST\" numDigits=\"1\"><Play>%s</Play></Gather><Hangup/></Response>",
 		self.GetUrl("gahter"),
-		self.GetUrl("message.wav"))
+		self.GetResource("ivr-message.wav"))
 	self.incoming <- 1
 }
 
@@ -113,7 +115,7 @@ func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/xml")
 	fmt.Fprintf(w,
 		"<Response><Play>%s</Play><Hangup/></Response>",
-		self.GetUrl("confirm.wav"))
+		self.GetResource("ivr-confirm.wav"))
 	val, _ := strconv.Atoi(r.PostFormValue("Digits"))
 	self.gather <- val
 }
@@ -127,6 +129,10 @@ func (self *Ivr) GetUrl(path string) string {
 	return fmt.Sprintf("http://%s:%d/%s", self.Host, self.Port, path)
 }
 
+func (self *Ivr) GetResource(path string) string {
+	return fmt.Sprintf("http://%s:%d/%s", self.Resources, self.Port, path)
+}
+
 func main(){
 	number := flag.String("n", "7777", "Test number")
 	host := flag.String("h", getLocalIp().String(), "Host")
@@ -134,11 +140,20 @@ func main(){
 	rHost := flag.String("r", "127.0.0.1:8080", "Restcomm host")
 	rUser := flag.String("r-user", "ACae6e420f425248d6a26948c17a9e2acf", "Restcomm user")
 	rPswd := flag.String("r-pswd", "42d8aa7cde9c78c4757862d84620c335", "Restcomm password")
+	resources := flag.String("res", "127.0.0.1:8080", "Nginx address")
+	l := flag.String("l", "INFO", "Log level: TRACE, INFO")
 	flag.Parse()
 
-	common.InitLog(os.Stdout, os.Stdout, os.Stdout, os.Stdout)
+	var traceHandle io.Writer
+	if *l == "TRACE" {
+		traceHandle = os.Stdout
+	} else {
+		traceHandle = ioutil.Discard
+	}
+	common.InitLog(traceHandle, os.Stdout, os.Stdout, os.Stderr)
+
 	api := common.NewRestcommApi(*rHost, *rUser, *rPswd)
-	ivr := &Ivr{Host: *host, Port: *port, Number: *number, RestcommApi: &api,
+	ivr := &Ivr{Host: *host, Port: *port, Resources: *resources, Number: *number, RestcommApi: &api,
 		incoming: make(chan int, 200), gather: make(chan int, 200),
 		Stat: &Stat{}}
 	common.Trace.Println("Started with", ivr.Json())
