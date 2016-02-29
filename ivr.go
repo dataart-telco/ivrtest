@@ -92,30 +92,32 @@ func (self *Ivr) Json() string{
 	return string(data)
 }
 
-func (self *Ivr) Listen(){
-	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request){
+func (self *Ivr) Listen() {
+	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		self.Stat = &Stat{}
-		fmt.Fprintf(w,"Stat is reseted");
+		fmt.Fprintf(w, "Stat is reseted");
 	})
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, "%s", self.Json());
 	})
-	http.HandleFunc("/stat/incoming", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/stat/incoming", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, "%d", self.Stat.Incoming);
 	})
-	http.HandleFunc("/stat/received", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/stat/received", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, "%d", self.Stat.Received);
 	})
 	http.HandleFunc("/incoming", self.handlerIncoming)
 	http.HandleFunc("/gather", self.handlerGather)
-	err := http.ListenAndServe(fmt.Sprintf(":%d", self.Port), nil)
-	if err != nil {
-		panic(err)
-	}
+	go func(){
+		err := http.ListenAndServe(fmt.Sprintf(":%d", self.Port), nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
 	signalChannel := createCtrlCChan()
 	for{
 		select {
@@ -143,7 +145,7 @@ func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/xml")
 	fmt.Fprintf(w,
 		"<Response><Play>%s</Play><Hangup/></Response>",
-		self.Res.Msg)
+		self.Res.Confirm)
 	val, _ := strconv.Atoi(r.PostFormValue("Digits"))
 	self.gather <- val
 }
