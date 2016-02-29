@@ -97,19 +97,23 @@ func (self *Ivr) Json() string{
 
 func (self *Ivr) Listen() {
 	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "text/html")
 		self.Stat = &Stat{}
 		fmt.Fprintf(w, "Stat is reseted");
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, "%s", self.Json());
 	})
 	http.HandleFunc("/stat/incoming", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, "%d", self.Stat.Incoming);
 	})
 	http.HandleFunc("/stat/received", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, "%d", self.Stat.Received);
 	})
@@ -135,6 +139,7 @@ func (self *Ivr) Listen() {
 }
 
 func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Connection", "close")
 	w.Header().Set("Content-Type", "text/xml")
 	//from := r.PostFormValue("From")
 	fmt.Fprintf(w,
@@ -145,6 +150,7 @@ func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
 }
 
 func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Connection", "close")
 	w.Header().Set("Content-Type", "text/xml")
 	fmt.Fprintf(w,
 		"<Response><Play>%s</Play><Hangup/></Response>",
