@@ -177,7 +177,8 @@ func main(){
 	common.InitLog(traceHandle, os.Stdout, os.Stdout, os.Stderr)
 
 	api := common.NewRestcommApi(*rHost, *rUser, *rPswd)
-	ivr := &Ivr{Res: NewResources(*resources, *msg, *conf),
+	ivr := &Ivr{Host: *host, Port: *port,
+		Res: NewResources(*resources, *msg, *conf),
 		Urls: NewUrls(*host, *port),
 		RestcommApi: &api, Number: *number,
 		incoming: make(chan int, 200), gather: make(chan int, 200),
