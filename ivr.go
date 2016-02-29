@@ -21,35 +21,41 @@ type Stat struct {
 }
 
 type Urls struct {
-	Gather string
+	Gather   string
 	Incoming string
 }
 
+type Answers struct {
+	Incoming string
+	Confirm  string
+}
+
 type Resources struct {
-	Msg string
+	Msg     string
 	Confirm string
 }
 
-type Ivr struct{
-	Host string
-	Port int
-	Res Resources
-	Urls Urls
+type Ivr struct {
+	Host        string
+	Port        int
+	Res         Resources
+	Urls        Urls
+	Answers     Answers
 
-	Number string
+	Number      string
 	RestcommApi *common.RestcommApi
 
-	incoming chan int `json:"-"`
-	gather chan int `json:"-"`
+	incoming    chan int `json:"-"`
+	gather      chan int `json:"-"`
 
-	Stat *Stat
+	Stat        *Stat
 }
 
-func NewResources(host string, msg string, confirm string) Resources{
+func NewResources(host string, msg string, confirm string) Resources {
 	return Resources{Msg: GetUrl(host, msg), Confirm: GetUrl(host, confirm)}
 }
 
-func NewUrls(host string, port int) Urls{
+func NewUrls(host string, port int) Urls {
 	return Urls{
 		Gather: GetUrlWithPort(host, port, "gather"),
 		Incoming: GetUrlWithPort(host, port, "incoming")}
@@ -90,9 +96,24 @@ func createCtrlCChan() chan os.Signal {
 	return signalChannel
 }
 
-func (self *Ivr) Json() string{
+func (self *Ivr) Json() string {
 	data, _ := json.Marshal(self)
 	return string(data)
+}
+
+func (self *Ivr) Precompile() {
+	incoming := fmt.Sprintf(
+		"<Response><Gather action=\"%s\" method=\"POST\" numDigits=\"1\"><Play>%s</Play></Gather><Hangup/></Response>",
+		self.Urls.Gather,
+		self.Res.Msg)
+
+	confirm := fmt.Sprintf(
+		"<Response><Play>%s</Play><Hangup/></Response>",
+		self.Res.Confirm)
+
+	self.Answers = Answers{
+		Incoming: incoming,
+		Confirm: confirm}
 }
 
 func (self *Ivr) Listen() {
@@ -119,21 +140,21 @@ func (self *Ivr) Listen() {
 	})
 	http.HandleFunc("/incoming", self.handlerIncoming)
 	http.HandleFunc("/gather", self.handlerGather)
-	go func(){
+	go func() {
 		err := http.ListenAndServe(fmt.Sprintf(":%d", self.Port), nil)
 		if err != nil {
 			panic(err)
 		}
 	}()
 	signalChannel := createCtrlCChan()
-	for{
+	for {
 		select {
-			case <- self.incoming:
-				self.Stat.Incoming ++
-			case <- self.gather:
-				self.Stat.Received ++
-			case <- signalChannel:
-				return;
+		case <-self.incoming:
+			self.Stat.Incoming ++
+		case <-self.gather:
+			self.Stat.Received ++
+		case <-signalChannel:
+			return;
 		}
 	}
 }
@@ -142,29 +163,24 @@ func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "close")
 	w.Header().Set("Content-Type", "text/xml")
 	//from := r.PostFormValue("From")
-	fmt.Fprintf(w,
-		"<Response><Gather action=\"%s\" method=\"POST\" numDigits=\"1\"><Play>%s</Play></Gather><Hangup/></Response>",
-		self.Urls.Gather,
-		self.Res.Msg)
+	fmt.Fprint(w, self.Answers.Incoming)
 	self.incoming <- 1
 }
 
 func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "close")
 	w.Header().Set("Content-Type", "text/xml")
-	fmt.Fprintf(w,
-		"<Response><Play>%s</Play><Hangup/></Response>",
-		self.Res.Confirm)
+	fmt.Fprint(w, self.Answers.Confirm)
 	val, _ := strconv.Atoi(r.PostFormValue("Digits"))
 	self.gather <- val
 }
 
-func (self *Ivr) RegisterNumber(){
+func (self *Ivr) RegisterNumber() {
 	common.Info.Println("\tRegister number:", self.Number)
 	common.NewIncomingPhoneNumber("", self.Number).CreateOrUpdate(*self.RestcommApi, self.Urls.Incoming)
 }
 
-func main(){
+func main() {
 	number := flag.String("n", "7777", "Test number")
 	host := flag.String("h", getLocalIp().String(), "Host")
 	port := flag.Int("p", 7090, "Port")
@@ -194,6 +210,7 @@ func main(){
 		RestcommApi: &api, Number: *number,
 		incoming: make(chan int, 200), gather: make(chan int, 200),
 		Stat: &Stat{}}
+	ivr.Precompile()
 	common.Info.Println("Started with", ivr.Json())
 	ivr.RegisterNumber()
 	ivr.Listen()
