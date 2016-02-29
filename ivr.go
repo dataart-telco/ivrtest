@@ -56,6 +56,9 @@ func NewUrls(host string, port int) Urls{
 }
 
 func GetUrl(host string, path string) string {
+	if host == "" {
+		return path
+	}
 	return fmt.Sprintf("http://%s/%s", host, path)
 }
 
