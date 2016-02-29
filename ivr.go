@@ -20,10 +20,21 @@ type Stat struct {
 	Received int
 }
 
+type Urls struct {
+	Gather string
+	Incoming string
+}
+
+type Resources struct {
+	Msg string
+	Confirm string
+}
+
 type Ivr struct{
 	Host string
 	Port int
-	Resources string
+	Res Resources
+	Urls Urls
 
 	Number string
 	RestcommApi *common.RestcommApi
@@ -34,6 +45,23 @@ type Ivr struct{
 	Stat *Stat
 }
 
+func NewResources(host string, msg string, confirm string) Resources{
+	return Resources{Msg: GetUrl(host, msg), Confirm: GetUrl(host, confirm)}
+}
+
+func NewUrls(host string, port int) Urls{
+	return Urls{
+		Gather: GetUrlWithPort(host, port, "gather"),
+		Incoming: GetUrlWithPort(host, port, "incoming")}
+}
+
+func GetUrl(host string, path string) string {
+	return fmt.Sprintf("http://%s/%s", host, path)
+}
+
+func GetUrlWithPort(host string, port int, path string) string {
+	return fmt.Sprintf("http://%s:%d/%s", host, port, path)
+}
 
 func getLocalIp() net.IP {
 	addrs, err := net.InterfaceAddrs()
@@ -83,7 +111,7 @@ func (self *Ivr) Listen(){
 		fmt.Fprintf(w, "%d", self.Stat.Received);
 	})
 	http.HandleFunc("/incoming", self.handlerIncoming)
-	http.HandleFunc("/gahter", self.handlerGather)
+	http.HandleFunc("/gather", self.handlerGather)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", self.Port), nil)
 	if err != nil {
 		panic(err)
@@ -106,8 +134,8 @@ func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
 	//from := r.PostFormValue("From")
 	fmt.Fprintf(w,
 		"<Response><Gather action=\"%s\" method=\"POST\" numDigits=\"1\"><Play>%s</Play></Gather><Hangup/></Response>",
-		self.GetUrl("gahter"),
-		self.GetResource("ivr-message.wav"))
+		self.Urls.Gather,
+		self.Res.Msg)
 	self.incoming <- 1
 }
 
@@ -115,22 +143,14 @@ func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/xml")
 	fmt.Fprintf(w,
 		"<Response><Play>%s</Play><Hangup/></Response>",
-		self.GetResource("ivr-confirm.wav"))
+		self.Res.Msg)
 	val, _ := strconv.Atoi(r.PostFormValue("Digits"))
 	self.gather <- val
 }
 
 func (self *Ivr) RegisterNumber(){
 	common.Info.Println("\tRegister number:", self.Number)
-	common.NewIncomingPhoneNumber("", self.Number).CreateOrUpdate(*self.RestcommApi, self.GetUrl("incoming"))
-}
-
-func (self *Ivr) GetUrl(path string) string {
-	return fmt.Sprintf("http://%s:%d/%s", self.Host, self.Port, path)
-}
-
-func (self *Ivr) GetResource(path string) string {
-	return fmt.Sprintf("http://%s:%d/%s", self.Resources, self.Port, path)
+	common.NewIncomingPhoneNumber("", self.Number).CreateOrUpdate(*self.RestcommApi, self.Urls.Incoming)
 }
 
 func main(){
@@ -140,7 +160,11 @@ func main(){
 	rHost := flag.String("r", "127.0.0.1:8080", "Restcomm host")
 	rUser := flag.String("r-user", "ACae6e420f425248d6a26948c17a9e2acf", "Restcomm user")
 	rPswd := flag.String("r-pswd", "42d8aa7cde9c78c4757862d84620c335", "Restcomm password")
+
 	resources := flag.String("res", "127.0.0.1:8080", "Nginx address")
+	msg := flag.String("res-msg", "ivr-message.wav", "message wav")
+	conf := flag.String("res-confirm", "ivr-confirm.wav", "conf wav")
+
 	l := flag.String("l", "INFO", "Log level: TRACE, INFO")
 	flag.Parse()
 
@@ -153,10 +177,12 @@ func main(){
 	common.InitLog(traceHandle, os.Stdout, os.Stdout, os.Stderr)
 
 	api := common.NewRestcommApi(*rHost, *rUser, *rPswd)
-	ivr := &Ivr{Host: *host, Port: *port, Resources: *resources, Number: *number, RestcommApi: &api,
+	ivr := &Ivr{Res: NewResources(*resources, *msg, *conf),
+		Urls: NewUrls(*host, *port),
+		RestcommApi: &api, Number: *number,
 		incoming: make(chan int, 200), gather: make(chan int, 200),
 		Stat: &Stat{}}
-	common.Trace.Println("Started with", ivr.Json())
+	common.Info.Println("Started with", ivr.Json())
 	ivr.RegisterNumber()
 	ivr.Listen()
 }
