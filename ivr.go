@@ -108,7 +108,7 @@ func (self *Ivr) Precompile() {
 		self.Res.Msg)
 
 	confirm := fmt.Sprintf(
-		"<Response><Play>%s</Play><Hangup/></Response>",
+		"<Response><Play>%s</Play></Response>",
 		self.Res.Confirm)
 
 	self.Answers = Answers{
@@ -170,8 +170,18 @@ func (self *Ivr) handlerIncoming(w http.ResponseWriter, r *http.Request) {
 func (self *Ivr) handlerGather(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "close")
 	w.Header().Set("Content-Type", "text/xml")
+	val, err := strconv.Atoi(r.PostFormValue("Digits"))
+	if err != nil {
+		common.Error.Println("No digits")
+		fmt.Fprint(w, "<Response><Hangup/></Response>")
+		return
+	}
+	if val != 5 {
+		common.Error.Println("Is not 5")
+		fmt.Fprint(w, "<Response><Hangup/></Response>")
+		return
+	}
 	fmt.Fprint(w, self.Answers.Confirm)
-	val, _ := strconv.Atoi(r.PostFormValue("Digits"))
 	self.gather <- val
 }
 

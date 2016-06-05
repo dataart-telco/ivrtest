@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./utils/read-network-props.sh "eth0"
+PRIVATE_IP=`ip addr show eth0 | grep inet | head -1 | awk '{print $2}' | cut -f1 -d'/'`
 
 echo "Start ivr-server"
 
